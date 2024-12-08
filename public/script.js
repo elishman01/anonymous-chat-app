@@ -1,5 +1,5 @@
 // Connect to Socket.IO server
-const socket = io();
+const socket = io('https://anonymous-chat-app-3qm1.onrender.com');
 
 // DOM Elements
 const chatContainer = document.getElementById('chat-container');

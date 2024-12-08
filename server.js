@@ -35,8 +35,30 @@ app.get('/:roomId', (req, res) => {
 io.on('connection', (socket) => {
     console.log('A user connected');
 
+    // Handle room joining
+    socket.on('join-room', (roomId) => {
+        socket.join(roomId);
+        console.log(`User joined room: ${roomId}`);
+        // Notify only this user that they've joined successfully
+        socket.emit('message', {
+            userId: 'System',
+            message: `You've joined the room ${roomId}`
+        });
+    });
+
     socket.on('message', (msg) => {
-        io.emit('message', msg); // Broadcast to all users
+        // Get the rooms this socket is in
+        const rooms = Array.from(socket.rooms);
+        // The first room is always the socket's ID, so we want the second one
+        const roomId = rooms[1];
+        
+        if (roomId) {
+            // Broadcast to the specific room
+            io.to(roomId).emit('message', msg);
+        } else {
+            // Fallback: broadcast to everyone (should not happen)
+            io.emit('message', msg);
+        }
     });
 
     socket.on('disconnect', () => {
