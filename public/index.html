@@ -15,6 +15,10 @@
             <div id="chat-container" class="hidden">
                 <div id="messages"></div>
                 <div class="input-container">
+                    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                        📎
+                    </button>
+                    <input type="file" id="file-input" accept="image/*,video/*" style="display: none">
                     <input type="text" id="message-input" placeholder="Type your message...">
                     <button onclick="sendMessage()">Send</button>
                 </div>

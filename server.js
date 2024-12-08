@@ -3,7 +3,29 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const cors = require('cors');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
 require('dotenv').config();
+
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Configure Cloudinary storage
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'anonymous-chat',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'mp4', 'webm'],
+        resource_type: 'auto'
+    }
+});
+
+const upload = multer({ storage: storage });
 
 const app = express();
 const server = http.createServer(app);
@@ -45,6 +67,24 @@ function removeRoom(roomId) {
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// File upload endpoint
+app.post('/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        // Return the Cloudinary URL
+        res.json({ 
+            url: req.file.path,
+            type: req.file.resource_type
+        });
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'Upload failed' });
+    }
+});
 
 // Serve index.html for the root route
 app.get('/', (req, res) => {
