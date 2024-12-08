@@ -1,27 +1,3 @@
-// Connect to Socket.IO server
-const BACKEND_URL = 'https://anonymous-chat-app-3qm1.onrender.com';
-const socket = io(BACKEND_URL);
-
-// Add connection event handlers
-socket.on('connect', () => {
-    console.log('Connected to server');
-});
-
-socket.on('connect_error', (error) => {
-    console.error('Connection error:', error);
-    addMessage('System', 'Connection error. Please try again.');
-});
-
-// Handle disconnection
-socket.on('disconnect', (reason) => {
-    console.log('Disconnected:', reason);
-    if (reason === 'io server disconnect') {
-        // Server forcefully disconnected us, redirect to home
-        addMessage('System', 'Room has expired or been closed.');
-        window.location.href = '/';
-    }
-});
-
 // DOM Elements
 const chatContainer = document.getElementById('chat-container');
 const welcomeContainer = document.getElementById('welcome-container');
@@ -58,12 +34,45 @@ function addMessage(sender, text, mediaUrl = null, mediaType = null) {
     return messageElement;
 }
 
-// Handle file selection
+// Connect to Socket.IO server
+const BACKEND_URL = 'https://anonymous-chat-app-3qm1.onrender.com';
+const socket = io(BACKEND_URL);
+
+// Socket event handlers
+socket.on('connect', () => {
+    console.log('Connected to server');
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+    addMessage('System', 'Connection error. Please try again.');
+});
+
+socket.on('disconnect', (reason) => {
+    console.log('Disconnected:', reason);
+    if (reason === 'io server disconnect') {
+        addMessage('System', 'Room has expired or been closed.');
+        window.location.href = '/';
+    }
+});
+
+socket.on('message', (data) => {
+    console.log('Received message:', data);
+    const sender = data.userId === userId ? 'You' : 'Anonymous';
+    addMessage(sender, data.message, data.mediaUrl, data.mediaType);
+});
+
+socket.on('room-info', (data) => {
+    console.log('Room info received:', data);
+    addMessage('System', data.message);
+    updateExpiryTimer(data.expiresIn);
+});
+
+// File upload handling
 fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Create temporary message for upload status
     const tempMessage = addMessage('You', 'Uploading file...');
     tempMessage.classList.add('uploading');
 
@@ -79,11 +88,8 @@ fileInput.addEventListener('change', async (e) => {
         if (!response.ok) throw new Error('Upload failed');
 
         const data = await response.json();
-        
-        // Remove temporary message
         tempMessage.remove();
 
-        // Send the media message
         socket.emit('message', {
             userId,
             message: '',
@@ -98,21 +104,25 @@ fileInput.addEventListener('change', async (e) => {
         setTimeout(() => tempMessage.remove(), 3000);
     }
 
-    // Clear the file input
     fileInput.value = '';
 });
 
-// Handle room expiration info
-socket.on('room-info', (data) => {
-    console.log('Room info received:', data);
-    addMessage('System', data.message);
+// Room functions
+function createRoom() {
+    console.log('Creating room...');
+    const roomId = Math.random().toString(36).substring(2, 10);
+    console.log('Generated room ID:', roomId);
     
-    // Start countdown timer
-    updateExpiryTimer(data.expiresIn);
-});
+    socket.emit('join-room', roomId);
+    window.history.pushState({}, '', `/${roomId}`);
+    
+    welcomeContainer.classList.add('hidden');
+    chatContainer.classList.remove('hidden');
+    
+    addMessage('System', 'Room created! Share this URL with others to chat anonymously.');
+}
 
 function updateExpiryTimer(expiresIn) {
-    // Create or get timer element
     let timerElement = document.getElementById('expiry-timer');
     if (!timerElement) {
         timerElement = document.createElement('div');
@@ -121,7 +131,6 @@ function updateExpiryTimer(expiresIn) {
         chatContainer.insertBefore(timerElement, messagesDiv);
     }
     
-    // Update timer every second
     const updateTimer = () => {
         const minutesLeft = Math.floor(expiresIn / 60);
         const secondsLeft = Math.floor(expiresIn % 60);
@@ -138,22 +147,7 @@ function updateExpiryTimer(expiresIn) {
     
     updateTimer();
     const timerId = setInterval(updateTimer, 1000);
-
     setTimeout(() => clearInterval(timerId), expiresIn * 1000);
-}
-
-function createRoom() {
-    console.log('Creating room...');
-    const roomId = Math.random().toString(36).substring(2, 10);
-    console.log('Generated room ID:', roomId);
-    
-    socket.emit('join-room', roomId);
-    window.history.pushState({}, '', `/${roomId}`);
-    
-    welcomeContainer.classList.add('hidden');
-    chatContainer.classList.remove('hidden');
-    
-    addMessage('System', 'Room created! Share this URL with others to chat anonymously.');
 }
 
 function sendMessage() {
@@ -170,45 +164,14 @@ function sendMessage() {
     }
 }
 
-// Handle incoming messages
-socket.on('message', (data) => {
-    console.log('Received message:', data);
-    const sender = data.userId === userId ? 'You' : 'Anonymous';
-    
-    // Create message element
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${sender === 'You' ? 'sent' : ''}`;
-    
-    // Build message content
-    let content = `<strong>${sender}:</strong>`;
-    
-    if (data.mediaUrl) {
-        if (data.mediaType === 'image') {
-            content += `<p><img src="${data.mediaUrl}" alt="Shared image"></p>`;
-        } else if (data.mediaType === 'video') {
-            content += `<p><video controls src="${data.mediaUrl}"></video></p>`;
-        }
-    }
-    
-    if (data.message) {
-        content += `<p>${data.message}</p>`;
-    }
-    
-    messageElement.innerHTML = content;
-    messagesDiv.appendChild(messageElement);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    
-    return messageElement;
-});
-
-// Handle enter key in message input
+// Event listeners
 messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         sendMessage();
     }
 });
 
-// Check if we're joining an existing room
+// Check for existing room
 const roomId = window.location.pathname.substring(1);
 if (roomId) {
     console.log('Joining existing room:', roomId);
