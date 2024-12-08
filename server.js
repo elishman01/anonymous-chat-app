@@ -16,6 +16,31 @@ const io = new Server(server, {
     }
 });
 
+// Store active rooms and their timeouts
+const activeRooms = new Map();
+const ROOM_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+// Function to remove room and notify users
+function removeRoom(roomId) {
+    const room = activeRooms.get(roomId);
+    if (room) {
+        // Notify users in the room
+        io.to(roomId).emit('message', {
+            userId: 'System',
+            message: 'This room has expired. Please create a new room.'
+        });
+        
+        // Disconnect all users from the room
+        io.in(roomId).disconnectSockets();
+        
+        // Clear the timeout and delete the room
+        clearTimeout(room.timeout);
+        activeRooms.delete(roomId);
+        
+        console.log(`Room ${roomId} has expired and been removed`);
+    }
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -28,7 +53,15 @@ app.get('/', (req, res) => {
 
 // Add route for room URLs
 app.get('/:roomId', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const roomId = req.params.roomId;
+    
+    // Check if room exists and hasn't expired
+    if (activeRooms.has(roomId)) {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    } else {
+        // Redirect to home if room doesn't exist or has expired
+        res.redirect('/');
+    }
 });
 
 // WebSocket connection
@@ -37,12 +70,28 @@ io.on('connection', (socket) => {
 
     // Handle room joining
     socket.on('join-room', (roomId) => {
+        // Check if room exists or create it
+        if (!activeRooms.has(roomId)) {
+            // Set up room expiration
+            const timeout = setTimeout(() => removeRoom(roomId), ROOM_EXPIRY_TIME);
+            activeRooms.set(roomId, {
+                createdAt: Date.now(),
+                timeout: timeout
+            });
+            console.log(`Created new room: ${roomId}`);
+        }
+
         socket.join(roomId);
         console.log(`User joined room: ${roomId}`);
-        // Notify only this user that they've joined successfully
-        socket.emit('message', {
-            userId: 'System',
-            message: `You've joined the room ${roomId}`
+
+        // Send room expiry time to user
+        const room = activeRooms.get(roomId);
+        const expiresIn = (room.createdAt + ROOM_EXPIRY_TIME - Date.now()) / 1000;
+        
+        socket.emit('room-info', {
+            roomId: roomId,
+            expiresIn: expiresIn,
+            message: `Room will expire in ${Math.floor(expiresIn / 3600)} hours`
         });
     });
 
@@ -52,12 +101,9 @@ io.on('connection', (socket) => {
         // The first room is always the socket's ID, so we want the second one
         const roomId = rooms[1];
         
-        if (roomId) {
+        if (roomId && activeRooms.has(roomId)) {
             // Broadcast to the specific room
             io.to(roomId).emit('message', msg);
-        } else {
-            // Fallback: broadcast to everyone (should not happen)
-            io.emit('message', msg);
         }
     });
 
