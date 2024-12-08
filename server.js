@@ -32,11 +32,20 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: process.env.NODE_ENV === 'production' 
-            ? process.env.FRONTEND_URL 
+            ? [process.env.FRONTEND_URL, process.env.BACKEND_URL]
             : 'http://localhost:3000',
-        methods: ['GET', 'POST']
+        methods: ['GET', 'POST'],
+        credentials: true
     }
 });
+
+// Enable CORS for Express
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production'
+        ? [process.env.FRONTEND_URL, process.env.BACKEND_URL]
+        : 'http://localhost:3000',
+    credentials: true
+}));
 
 // Store active rooms and their timeouts
 const activeRooms = new Map();
@@ -64,7 +73,6 @@ function removeRoom(roomId) {
 }
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
