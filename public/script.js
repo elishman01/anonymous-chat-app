@@ -1,5 +1,6 @@
 // Connect to Socket.IO server
-const socket = io('https://anonymous-chat-app-3qm1.onrender.com');
+const BACKEND_URL = 'https://anonymous-chat-app-3qm1.onrender.com';
+const socket = io(BACKEND_URL);
 
 // Add connection event handlers
 socket.on('connect', () => {
@@ -41,7 +42,7 @@ fileInput.addEventListener('change', async (e) => {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch('https://anonymous-chat-app-3qm1.onrender.com/upload', {
+        const response = await fetch(`${BACKEND_URL}/upload`, {
             method: 'POST',
             body: formData
         });

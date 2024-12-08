@@ -70,11 +70,14 @@ app.use(express.static('public'));
 
 // File upload endpoint
 app.post('/upload', upload.single('file'), async (req, res) => {
+    console.log('Upload request received');
     try {
         if (!req.file) {
+            console.log('No file in request');
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
+        console.log('File uploaded successfully:', req.file);
         // Return the Cloudinary URL
         res.json({ 
             url: req.file.path,
