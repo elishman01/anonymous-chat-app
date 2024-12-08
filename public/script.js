@@ -29,6 +29,35 @@ const messagesDiv = document.getElementById('messages');
 const messageInput = document.getElementById('message-input');
 const fileInput = document.getElementById('file-input');
 
+// Generate a random user ID
+const userId = Math.random().toString(36).substring(2, 15);
+
+// Function to add messages
+function addMessage(sender, text, mediaUrl = null, mediaType = null) {
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${sender === 'You' ? 'sent' : ''}`;
+    
+    let content = `<strong>${sender}:</strong>`;
+    
+    if (mediaUrl) {
+        if (mediaType === 'image') {
+            content += `<p><img src="${mediaUrl}" alt="Shared image"></p>`;
+        } else if (mediaType === 'video') {
+            content += `<p><video controls src="${mediaUrl}"></video></p>`;
+        }
+    }
+    
+    if (text) {
+        content += `<p>${text}</p>`;
+    }
+    
+    messageElement.innerHTML = content;
+    messagesDiv.appendChild(messageElement);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    
+    return messageElement;
+}
+
 // Handle file selection
 fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -72,9 +101,6 @@ fileInput.addEventListener('change', async (e) => {
     // Clear the file input
     fileInput.value = '';
 });
-
-// Generate a random user ID
-const userId = Math.random().toString(36).substring(2, 15);
 
 // Handle room expiration info
 socket.on('room-info', (data) => {
