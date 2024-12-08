@@ -18,7 +18,7 @@ const io = new Server(server, {
 
 // Store active rooms and their timeouts
 const activeRooms = new Map();
-const ROOM_EXPIRY_TIME = 2 * 60 * 1000; // 2 minutes in milliseconds for testing
+const ROOM_EXPIRY_TIME = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
 
 // Function to remove room and notify users
 function removeRoom(roomId) {
