@@ -18,7 +18,7 @@ const io = new Server(server, {
 
 // Store active rooms and their timeouts
 const activeRooms = new Map();
-const ROOM_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const ROOM_EXPIRY_TIME = 2 * 60 * 1000; // 2 minutes in milliseconds for testing
 
 // Function to remove room and notify users
 function removeRoom(roomId) {
@@ -91,7 +91,7 @@ io.on('connection', (socket) => {
         socket.emit('room-info', {
             roomId: roomId,
             expiresIn: expiresIn,
-            message: `Room will expire in ${Math.floor(expiresIn / 3600)} hours`
+            message: `Room will expire in ${Math.floor(expiresIn / 60)} minutes`
         });
     });
 
