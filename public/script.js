@@ -36,7 +36,11 @@ function addMessage(sender, text, mediaUrl = null, mediaType = null) {
 
 // Connect to Socket.IO server
 const BACKEND_URL = 'https://anonymous-chat-app-3qm1.onrender.com';
-const socket = io(BACKEND_URL);
+const socket = io(BACKEND_URL, {
+    transports: ['websocket', 'polling'],
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000
+});
 
 // Socket event handlers
 socket.on('connect', () => {
