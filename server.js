@@ -15,6 +15,15 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Verify Cloudinary configuration
+const cloudinaryConfig = cloudinary.config();
+if (!cloudinaryConfig.cloud_name || !cloudinaryConfig.api_key || !cloudinaryConfig.api_secret) {
+    console.error('Cloudinary configuration is incomplete. Please check your environment variables.');
+    process.exit(1);
+}
+
+console.log('Cloudinary configured successfully for cloud:', cloudinaryConfig.cloud_name);
+
 // Configure Cloudinary storage
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
