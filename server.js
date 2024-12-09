@@ -40,9 +40,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: process.env.NODE_ENV === 'production' 
-            ? [process.env.FRONTEND_URL, process.env.BACKEND_URL]
-            : 'http://localhost:3000',
+        origin: ['https://anonymousweb.netlify.app'],
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -50,9 +48,7 @@ const io = new Server(server, {
 
 // Enable CORS for Express
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production'
-        ? [process.env.FRONTEND_URL, process.env.BACKEND_URL]
-        : 'http://localhost:3000',
+    origin: ['https://anonymousweb.netlify.app'],
     credentials: true
 }));
 
