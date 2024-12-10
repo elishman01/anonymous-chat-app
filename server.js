@@ -42,14 +42,18 @@ const io = new Server(server, {
     cors: {
         origin: "https://anonymousweb.netlify.app",
         methods: ["GET", "POST"],
-        credentials: true,
-        transports: ['websocket', 'polling']
-    }
+        allowedHeaders: ["*"],
+        credentials: true
+    },
+    allowEIO3: true,
+    transports: ['websocket', 'polling']
 });
 
 // Enable CORS for Express
 app.use(cors({
     origin: "https://anonymousweb.netlify.app",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["*"],
     credentials: true
 }));
 

@@ -39,7 +39,10 @@ const BACKEND_URL = 'https://anonymous-chat-app-3qm1.onrender.com';
 const socket = io(BACKEND_URL, {
     transports: ['websocket', 'polling'],
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    withCredentials: true,
+    forceNew: true,
+    timeout: 10000
 });
 
 // Socket event handlers
