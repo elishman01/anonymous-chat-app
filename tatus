@@ -1,0 +1,21 @@
+warning: in the working copy of 'server.js', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/server.js b/server.js[m
+[1mindex 5ef8ae8..aced787 100644[m
+[1m--- a/server.js[m
+[1m+++ b/server.js[m
+[36m@@ -15,6 +15,15 @@[m [mcloudinary.config({[m
+     api_secret: process.env.CLOUDINARY_API_SECRET[m
+ });[m
+ [m
+[32m+[m[32m// Verify Cloudinary configuration[m
+[32m+[m[32mconst cloudinaryConfig = cloudinary.config();[m
+[32m+[m[32mif (!cloudinaryConfig.cloud_name || !cloudinaryConfig.api_key || !cloudinaryConfig.api_secret) {[m
+[32m+[m[32m    console.error('Cloudinary configuration is incomplete. Please check your environment variables.');[m
+[32m+[m[32m    process.exit(1);[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mconsole.log('Cloudinary configured successfully for cloud:', cloudinaryConfig.cloud_name);[m
+[32m+[m
+ // Configure Cloudinary storage[m
+ const storage = new CloudinaryStorage({[m
+     cloudinary: cloudinary,[m

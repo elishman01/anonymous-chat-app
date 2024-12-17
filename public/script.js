@@ -35,14 +35,15 @@ function addMessage(sender, text, mediaUrl = null, mediaType = null) {
 }
 
 // Connect to Socket.IO server
-const BACKEND_URL = 'https://anonymous-chat-app-3qm1.onrender.com';
+const BACKEND_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000'
+    : 'https://anonymous-chat-backend-8m4i.onrender.com';
+
 const socket = io(BACKEND_URL, {
     transports: ['websocket', 'polling'],
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    withCredentials: true,
-    forceNew: true,
-    timeout: 10000
+    withCredentials: true
 });
 
 // Socket event handlers

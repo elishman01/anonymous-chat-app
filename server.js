@@ -40,7 +40,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "https://anonymousweb.netlify.app",
+        origin: [
+            'http://localhost:3000',
+            'https://anonymousweb.netlify.app'
+        ],
         methods: ["GET", "POST"],
         allowedHeaders: ["*"],
         credentials: true
@@ -49,13 +52,17 @@ const io = new Server(server, {
     transports: ['websocket', 'polling']
 });
 
-// Enable CORS for Express
-app.use(cors({
-    origin: "https://anonymousweb.netlify.app",
-    methods: ["GET", "POST"],
-    allowedHeaders: ["*"],
+// CORS configuration
+const corsOptions = {
+    origin: [
+        'http://localhost:3000',
+        'https://anonymousweb.netlify.app'
+    ],
+    methods: ['GET', 'POST'],
     credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Store active rooms and their timeouts
 const activeRooms = new Map();
