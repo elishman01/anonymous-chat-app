@@ -116,20 +116,44 @@ fileInput.addEventListener('change', async (e) => {
 });
 
 // Room functions
-function createRoom() {
-    console.log('Creating room...');
-    const roomId = Math.random().toString(36).substring(2, 10);
-    console.log('Generated room ID:', roomId);
-    
-    socket.emit('join-room', roomId);
-    window.history.pushState({}, '', `/${roomId}`);
-    
-    welcomeContainer.classList.add('hidden');
-    chatContainer.classList.remove('hidden');
-    
-    addMessage('System', 'Room created! Share this URL with others to chat anonymously.');
+async function createRoom() {
+    try {
+        const roomId = Math.random().toString(36).substring(2, 10);
+        socket.emit('createRoom', { roomId });
+        
+        // Update URL without causing a page reload
+        window.history.pushState({ roomId }, '', `/${roomId}`);
+        
+        // Show chat container and hide welcome container
+        chatContainer.classList.remove('hidden');
+        welcomeContainer.classList.add('hidden');
+    } catch (error) {
+        console.error('Error creating room:', error);
+        addMessage('System', 'Error creating room. Please try again.');
+    }
 }
 
+// Handle browser back/forward buttons
+window.addEventListener('popstate', (event) => {
+    if (!event.state || !event.state.roomId) {
+        chatContainer.classList.add('hidden');
+        welcomeContainer.classList.remove('hidden');
+    }
+});
+
+// Check for room ID in URL when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    const path = window.location.pathname;
+    const roomId = path.substring(1); // Remove the leading slash
+    
+    if (roomId) {
+        socket.emit('joinRoom', { roomId });
+        chatContainer.classList.remove('hidden');
+        welcomeContainer.classList.add('hidden');
+    }
+});
+
+// Function to update expiry timer
 function updateExpiryTimer(expiresIn) {
     let timerElement = document.getElementById('expiry-timer');
     if (!timerElement) {
@@ -158,6 +182,7 @@ function updateExpiryTimer(expiresIn) {
     setTimeout(() => clearInterval(timerId), expiresIn * 1000);
 }
 
+// Function to send message
 function sendMessage() {
     const message = messageInput.value.trim();
     if (message) {
@@ -178,12 +203,3 @@ messageInput.addEventListener('keypress', (e) => {
         sendMessage();
     }
 });
-
-// Check for existing room
-const roomId = window.location.pathname.substring(1);
-if (roomId) {
-    console.log('Joining existing room:', roomId);
-    socket.emit('join-room', roomId);
-    welcomeContainer.classList.add('hidden');
-    chatContainer.classList.remove('hidden');
-}
