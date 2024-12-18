@@ -6,6 +6,9 @@ const messageInput = document.getElementById('message-input');
 const fileInput = document.getElementById('file-input');
 const userCountElement = document.getElementById('user-count');
 const copyUrlButton = document.getElementById('copy-url');
+const uploadTrigger = document.getElementById('upload-trigger');
+const sendMessageButton = document.getElementById('send-message');
+const createRoomButton = document.getElementById('create-room');
 
 // Generate a random user ID
 const userId = Math.random().toString(36).substring(2, 15);
@@ -29,6 +32,7 @@ function addMessage(userId, message, mediaUrl = null, mediaType = null, isSystem
     messageDiv.innerHTML = content;
     messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    return messageDiv;
 }
 
 // Connect to Socket.IO server
@@ -98,12 +102,62 @@ function createRoom() {
 }
 
 // Function to send a message
-function sendMessage() {
+async function sendMessage() {
     const message = messageInput.value.trim();
-    if (message) {
+    if (!message) return;
+
+    try {
+        toggleSendLoading(true);
         socket.emit('message', { message });
         messageInput.value = '';
+        
+        // Add message to UI with sending state
+        const messageElement = addMessage('You', message);
+        messageElement.classList.add('sending');
+        
+        // Remove sending state after a delay
+        setTimeout(() => {
+            messageElement.classList.remove('sending');
+        }, 1000);
+    } catch (error) {
+        console.error('Send error:', error);
+        addMessage('System', 'Failed to send message. Please try again.', null, null, true);
+    } finally {
+        toggleSendLoading(false);
     }
+}
+
+// Function to show/hide loading state for send button
+function toggleSendLoading(show) {
+    const btnText = document.querySelector('#send-message .btn-text');
+    const btnLoading = document.querySelector('#send-message .btn-loading');
+    btnText.classList.toggle('hidden', show);
+    btnLoading.classList.toggle('hidden', !show);
+}
+
+// Function to update upload progress
+function updateUploadProgress(progress) {
+    const progressBar = document.querySelector('.progress-bar');
+    const uploadProgress = document.querySelector('.upload-progress');
+    
+    if (progress === 0) {
+        uploadProgress.classList.remove('hidden');
+    } else if (progress === 100) {
+        setTimeout(() => {
+            uploadProgress.classList.add('hidden');
+        }, 500);
+    }
+    
+    progressBar.style.width = `${progress}%`;
+}
+
+// Function to show typing indicator
+function showTypingIndicator() {
+    const typingIndicator = document.querySelector('.typing-indicator');
+    typingIndicator.classList.remove('hidden');
+    setTimeout(() => {
+        typingIndicator.classList.add('hidden');
+    }, 3000);
 }
 
 // Handle file uploads
@@ -112,37 +166,61 @@ fileInput.addEventListener('change', async (e) => {
     if (!file) return;
 
     try {
-        addMessage('System', 'Uploading file...', null, null, true);
-        
+        updateUploadProgress(0);
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch(`${BACKEND_URL}/upload`, {
-            method: 'POST',
-            body: formData
-        });
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const progress = (e.loaded / e.total) * 100;
+                updateUploadProgress(progress);
+            }
+        };
 
-        if (!response.ok) {
-            throw new Error(`Upload failed: ${response.statusText}`);
-        }
+        xhr.onload = async () => {
+            if (xhr.status === 200) {
+                const response = JSON.parse(xhr.responseText);
+                updateUploadProgress(100);
+                socket.emit('message', {
+                    message: 'Shared a file',
+                    mediaUrl: response.url,
+                    mediaType: file.type.startsWith('image/') ? 'image' : 'video'
+                });
+            }
+        };
 
-        const result = await response.json();
-        console.log('Upload result:', result);
+        xhr.onerror = () => {
+            updateUploadProgress(0);
+            addMessage('System', 'Failed to upload file. Please try again.', null, null, true);
+        };
 
-        if (result.url) {
-            const mediaType = file.type.startsWith('image/') ? 'image' : 'video';
-            socket.emit('message', {
-                message: 'Shared a file',
-                mediaUrl: result.url,
-                mediaType: mediaType
-            });
-        }
+        xhr.open('POST', `${BACKEND_URL}/upload`);
+        xhr.send(formData);
     } catch (error) {
         console.error('Upload error:', error);
+        updateUploadProgress(0);
         addMessage('System', 'Failed to upload file. Please try again.', null, null, true);
     }
+});
 
-    fileInput.value = '';
+// Handle typing indicator
+let typingTimeout;
+messageInput.addEventListener('input', () => {
+    if (!typingTimeout) {
+        socket.emit('typing');
+    }
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        typingTimeout = null;
+    }, 1000);
+});
+
+// Listen for typing events
+socket.on('typing', (data) => {
+    if (data.userId !== userId) {
+        showTypingIndicator();
+    }
 });
 
 // Room functions
@@ -165,6 +243,36 @@ document.addEventListener('DOMContentLoaded', () => {
         chatContainer.classList.remove('hidden');
         welcomeContainer.classList.add('hidden');
     }
+
+    // File upload trigger
+    uploadTrigger.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // Send message button
+    sendMessageButton.addEventListener('click', sendMessage);
+
+    // Create room button
+    createRoomButton.addEventListener('click', createRoom);
+
+    // Message input enter key
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    // Copy URL button
+    copyUrlButton.addEventListener('click', () => {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            const button = copyUrlButton;
+            button.textContent = 'Copied!';
+            setTimeout(() => {
+                button.textContent = 'Copy Room URL';
+            }, 2000);
+        });
+    });
 });
 
 // Function to update expiry timer
@@ -195,28 +303,6 @@ function updateExpiryTimer(expiresIn) {
     const timerId = setInterval(updateTimer, 1000);
     setTimeout(() => clearInterval(timerId), expiresIn * 1000);
 }
-
-// Event listeners
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        sendMessage();
-    }
-});
-
-copyUrlButton.addEventListener('click', () => {
-    navigator.clipboard.writeText(window.location.href)
-        .then(() => {
-            const originalText = copyUrlButton.textContent;
-            copyUrlButton.textContent = 'Copied!';
-            setTimeout(() => {
-                copyUrlButton.textContent = originalText;
-            }, 2000);
-        })
-        .catch(err => {
-            console.error('Failed to copy URL:', err);
-            alert('Failed to copy URL. Please copy it manually.');
-        });
-});
 
 // Add some CSS styles
 const style = document.createElement('style');
