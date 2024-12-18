@@ -178,42 +178,58 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('room-expiry', { timeLeft: EXPIRY_WARNING_TIME });
         }, ROOM_EXPIRY_TIME - EXPIRY_WARNING_TIME);
 
+        joinRoom(socket, roomId);
         socket.emit('room-created', { roomId });
     });
 
     socket.on('join-room', (roomId) => {
         if (joinRoom(socket, roomId)) {
             socket.emit('room-joined', { roomId });
+            // Broadcast user count to all clients in the room
+            const room = activeRooms.get(roomId);
+            io.to(roomId).emit('user-count', room.users.size);
         } else {
             socket.emit('error', { message: 'Room not found or expired' });
         }
     });
 
     socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
         // Find and leave all rooms this socket was in
         for (const [roomId, room] of activeRooms.entries()) {
             if (room.users.has(socket.id)) {
                 leaveRoom(socket, roomId);
+                // Broadcast updated user count
+                io.to(roomId).emit('user-count', room.users.size);
             }
         }
     });
 
+    // Handle messages
     socket.on('message', (data) => {
         console.log('Message received:', data);
         const roomId = Array.from(socket.rooms)[1]; // First room is socket ID, second is chat room
+        
         if (roomId && activeRooms.has(roomId)) {
             const messageData = {
-                userId: socket.id === data.userId ? 'You' : 'Anonymous',
+                userId: socket.id,
                 message: data.message,
                 mediaUrl: data.mediaUrl,
                 mediaType: data.mediaType,
                 timestamp: new Date().toISOString()
             };
             
-            console.log('Broadcasting message:', messageData);
-            io.to(roomId).emit('message', messageData);
+            // Send different messages to sender and other users
+            socket.emit('message', {
+                ...messageData,
+                userId: 'You'
+            });
+            
+            socket.to(roomId).emit('message', {
+                ...messageData,
+                userId: 'Anonymous'
+            });
         } else {
-            console.log('Message not sent - invalid room:', roomId);
             socket.emit('message', {
                 userId: 'System',
                 message: 'Error: Not connected to a valid room'

@@ -13,20 +13,16 @@ const userId = Math.random().toString(36).substring(2, 15);
 // Function to add messages
 function addMessage(sender, text, mediaUrl = null, mediaType = null) {
     const messageElement = document.createElement('div');
-    messageElement.className = `message ${sender === 'You' ? 'sent' : ''}`;
+    messageElement.className = `message ${sender === 'You' ? 'own-message' : 'other-message'}`;
     
-    let content = `<strong>${sender}:</strong>`;
+    let content = `<strong>${sender}:</strong><p>${text}</p>`;
     
     if (mediaUrl) {
         if (mediaType === 'image') {
-            content += `<p><img src="${mediaUrl}" alt="Shared image"></p>`;
+            content += `<img src="${mediaUrl}" alt="Shared image" class="shared-media">`;
         } else if (mediaType === 'video') {
-            content += `<p><video controls src="${mediaUrl}"></video></p>`;
+            content += `<video src="${mediaUrl}" controls class="shared-media"></video>`;
         }
-    }
-    
-    if (text) {
-        content += `<p>${text}</p>`;
     }
     
     messageElement.innerHTML = content;
@@ -89,7 +85,8 @@ socket.on('room-info', (data) => {
 });
 
 socket.on('user-count', (count) => {
-    userCountElement.textContent = `Users: ${count}`;
+    console.log('User count updated:', count);
+    userCountElement.textContent = `Users Online: ${count}`;
 });
 
 socket.on('room-expiry', (data) => {
@@ -140,7 +137,6 @@ fileInput.addEventListener('change', async (e) => {
         addMessage('System', 'Failed to upload file. Please try again.');
     }
 
-    // Clear the file input
     fileInput.value = '';
 });
 
@@ -247,3 +243,41 @@ copyUrlButton.addEventListener('click', () => {
             alert('Failed to copy URL. Please copy it manually.');
         });
 });
+
+// Add some CSS styles
+const style = document.createElement('style');
+style.textContent = `
+    .message {
+        margin: 10px;
+        padding: 10px;
+        border-radius: 8px;
+        max-width: 80%;
+    }
+
+    .own-message {
+        background-color: #2196f3;
+        color: white;
+        margin-left: auto;
+    }
+
+    .other-message {
+        background-color: #424242;
+        color: white;
+        margin-right: auto;
+    }
+
+    .system-message {
+        background-color: #333;
+        color: #888;
+        text-align: center;
+        margin: 10px auto;
+    }
+
+    .shared-media {
+        max-width: 100%;
+        max-height: 300px;
+        margin-top: 10px;
+        border-radius: 4px;
+    }
+`;
+document.head.appendChild(style);
