@@ -92,7 +92,11 @@ socket.on('error', (data) => {
 
 socket.on('user-count', (data) => {
     const userCountElement = document.getElementById('user-count');
-    userCountElement.textContent = `Users: ${data.count}`;
+    if (data && typeof data.count === 'number') {
+        userCountElement.textContent = `Users: ${data.count}`;
+    } else {
+        userCountElement.textContent = 'Users: 0';
+    }
 });
 
 // Handle messages

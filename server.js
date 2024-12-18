@@ -170,11 +170,14 @@ io.on('connection', (socket) => {
         const roomId = generateRoomId();
         console.log(`Creating room ${roomId} for socket ${socket.id}`);
         
-        createRoom(roomId);
+        const room = createRoom(roomId);
         currentRoom = roomId;
         
+        // Join room and update user count
+        socket.join(roomId);
+        room.users.add(socket.id);
+        
         // Set room expiry
-        const room = activeRooms.get(roomId);
         room.expiryTimeout = setTimeout(() => {
             io.to(roomId).emit('room-expired');
             activeRooms.delete(roomId);
@@ -185,8 +188,9 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('room-expiry', { timeLeft: EXPIRY_WARNING_TIME });
         }, ROOM_EXPIRY_TIME - EXPIRY_WARNING_TIME);
 
-        joinRoom(socket, roomId);
+        // Send initial user count along with room creation
         socket.emit('room-created', { roomId });
+        io.to(roomId).emit('user-count', { count: 1 });
         socket.emit('message', {
             userId: 'System',
             message: 'Room created! Share this URL with others to chat anonymously.'
