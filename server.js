@@ -78,44 +78,42 @@ function createRoom(roomId) {
 }
 
 function joinRoom(socket, roomId) {
-    console.log(`Attempting to join room ${roomId} for socket ${socket.id}`);
-    const room = activeRooms.get(roomId);
-    if (!room) {
+    if (!activeRooms.has(roomId)) {
         console.log(`Room ${roomId} not found`);
         return false;
     }
 
-    room.users.add(socket.id);
     socket.join(roomId);
-    console.log(`Socket ${socket.id} joined room ${roomId}`);
+    const room = activeRooms.get(roomId);
+    room.users.add(socket.id);
     
-    // Broadcast updated user count
-    io.to(roomId).emit('user-count', room.users.size);
+    // Broadcast updated user count to all clients in the room
+    const userCount = room.users.size;
+    io.to(roomId).emit('user-count', { count: userCount });
     
-    // Set expiry warning
-    const timeLeft = (room.createdAt + ROOM_EXPIRY_TIME) - Date.now();
-    if (timeLeft <= EXPIRY_WARNING_TIME) {
-        socket.emit('room-expiry', { timeLeft });
-    }
-
+    console.log(`Socket ${socket.id} joined room ${roomId}. Users in room: ${userCount}`);
     return true;
 }
 
 function leaveRoom(socket, roomId) {
+    if (!activeRooms.has(roomId)) return;
+    
     const room = activeRooms.get(roomId);
-    if (!room) return;
-
     room.users.delete(socket.id);
     socket.leave(roomId);
     
     // Broadcast updated user count
-    io.to(roomId).emit('user-count', room.users.size);
-
+    const userCount = room.users.size;
+    io.to(roomId).emit('user-count', { count: userCount });
+    
+    console.log(`Socket ${socket.id} left room ${roomId}. Users remaining: ${userCount}`);
+    
     // Clean up empty rooms
     if (room.users.size === 0) {
         clearTimeout(room.expiryTimeout);
         clearTimeout(room.warningTimeout);
         activeRooms.delete(roomId);
+        console.log(`Room ${roomId} deleted - no users remaining`);
     }
 }
 

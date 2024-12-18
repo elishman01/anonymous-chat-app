@@ -73,19 +73,26 @@ socket.on('room-created', (data) => {
     window.history.pushState({}, '', `/${data.roomId}`);
     document.getElementById('welcome-container').style.display = 'none';
     document.getElementById('chat-container').classList.remove('hidden');
-    document.getElementById('copy-url').classList.remove('hidden'); // Show copy button
+    document.getElementById('copy-url').classList.remove('hidden'); 
+    document.getElementById('user-count').classList.remove('hidden');
 });
 
 socket.on('room-joined', (data) => {
     console.log('Room joined successfully:', data);
     document.getElementById('welcome-container').style.display = 'none';
     document.getElementById('chat-container').classList.remove('hidden');
-    document.getElementById('copy-url').classList.remove('hidden'); // Show copy button
+    document.getElementById('copy-url').classList.remove('hidden'); 
+    document.getElementById('user-count').classList.remove('hidden');
 });
 
 socket.on('error', (data) => {
     console.error('Server error:', data);
     addMessage('System', data.message, null, null, true);
+});
+
+socket.on('user-count', (data) => {
+    const userCountElement = document.getElementById('user-count');
+    userCountElement.textContent = `Users: ${data.count}`;
 });
 
 // Handle messages
