@@ -73,12 +73,14 @@ socket.on('room-created', (data) => {
     window.history.pushState({}, '', `/${data.roomId}`);
     document.getElementById('welcome-container').style.display = 'none';
     document.getElementById('chat-container').classList.remove('hidden');
+    document.getElementById('copy-url').classList.remove('hidden'); // Show copy button
 });
 
 socket.on('room-joined', (data) => {
     console.log('Room joined successfully:', data);
     document.getElementById('welcome-container').style.display = 'none';
     document.getElementById('chat-container').classList.remove('hidden');
+    document.getElementById('copy-url').classList.remove('hidden'); // Show copy button
 });
 
 socket.on('error', (data) => {
@@ -88,11 +90,15 @@ socket.on('error', (data) => {
 
 // Handle messages
 socket.on('message', (data) => {
-    console.log('Received message:', data);
-    if (data.userId === 'System') {
-        addMessage(data.userId, data.message, null, null, true);
+    const messageElement = addMessage(data.userId, data.message, data.mediaUrl, data.mediaType);
+    if (data.userId === 'You') {
+        messageElement.classList.add('self');
+        // Remove sending state after a short delay
+        setTimeout(() => {
+            messageElement.classList.remove('sending');
+        }, 300);
     } else {
-        addMessage(data.userId, data.message, data.mediaUrl, data.mediaType);
+        messageElement.classList.add('other');
     }
 });
 
@@ -111,14 +117,7 @@ async function sendMessage() {
         socket.emit('message', { message });
         messageInput.value = '';
         
-        // Add message to UI with sending state
-        const messageElement = addMessage('You', message);
-        messageElement.classList.add('sending');
-        
-        // Remove sending state after a delay
-        setTimeout(() => {
-            messageElement.classList.remove('sending');
-        }, 1000);
+        // Don't add message here, wait for server confirmation
     } catch (error) {
         console.error('Send error:', error);
         addMessage('System', 'Failed to send message. Please try again.', null, null, true);
