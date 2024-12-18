@@ -7,11 +7,52 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="script.js" defer></script>
+    <style>
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: #2c2c2c;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        .room-info {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        #user-count {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        #copy-url {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #copy-url:hover {
+            background: #1976d2;
+        }
+    </style>
 </head>
 <body>
     <div id="app">
         <div class="container">
-            <h1>Anonymous Chat</h1>
+            <div class="chat-header">
+                <h1>Anonymous Chat</h1>
+                <div class="room-info">
+                    <span id="user-count">Users: 1</span>
+                    <button id="copy-url" class="btn">Copy Room URL</button>
+                </div>
+            </div>
             <div id="chat-container" class="hidden">
                 <div id="messages"></div>
                 <div class="input-container">

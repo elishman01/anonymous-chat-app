@@ -4,6 +4,8 @@ const welcomeContainer = document.getElementById('welcome-container');
 const messagesDiv = document.getElementById('messages');
 const messageInput = document.getElementById('message-input');
 const fileInput = document.getElementById('file-input');
+const userCountElement = document.getElementById('user-count');
+const copyUrlButton = document.getElementById('copy-url');
 
 // Generate a random user ID
 const userId = Math.random().toString(36).substring(2, 15);
@@ -84,6 +86,22 @@ socket.on('room-info', (data) => {
     console.log('Room info received:', data);
     addMessage('System', data.message);
     updateExpiryTimer(data.expiresIn);
+});
+
+socket.on('user-count', (count) => {
+    userCountElement.textContent = `Users: ${count}`;
+});
+
+socket.on('room-expiry', (data) => {
+    const minutes = Math.ceil(data.timeLeft / 60000);
+    addMessage('System', `Room will expire in ${minutes} minute${minutes === 1 ? '' : 's'}. Create a new room to continue chatting.`);
+});
+
+socket.on('room-expired', () => {
+    addMessage('System', 'Room has expired. Please create a new room to continue chatting.');
+    setTimeout(() => {
+        window.location.href = '/';
+    }, 5000);
 });
 
 // File upload handling
@@ -213,4 +231,19 @@ messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         sendMessage();
     }
+});
+
+copyUrlButton.addEventListener('click', () => {
+    navigator.clipboard.writeText(window.location.href)
+        .then(() => {
+            const originalText = copyUrlButton.textContent;
+            copyUrlButton.textContent = 'Copied!';
+            setTimeout(() => {
+                copyUrlButton.textContent = originalText;
+            }, 2000);
+        })
+        .catch(err => {
+            console.error('Failed to copy URL:', err);
+            alert('Failed to copy URL. Please copy it manually.');
+        });
 });

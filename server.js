@@ -62,29 +62,60 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Store active rooms and their timeouts
-const activeRooms = new Map();
-const ROOM_EXPIRY_TIME = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+// Room management
+const ROOM_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24 hours
+const EXPIRY_WARNING_TIME = 10 * 60 * 1000; // 10 minutes
 
-// Function to remove room and notify users
-function removeRoom(roomId) {
+const activeRooms = new Map(); // roomId -> { users: Set, createdAt: timestamp }
+
+function createRoom(roomId) {
+    activeRooms.set(roomId, {
+        users: new Set(),
+        createdAt: Date.now(),
+        expiryTimeout: null,
+        warningTimeout: null
+    });
+}
+
+function joinRoom(socket, roomId) {
     const room = activeRooms.get(roomId);
-    if (room) {
-        // Notify users in the room
-        io.to(roomId).emit('message', {
-            userId: 'System',
-            message: 'This room has expired. Please create a new room.'
-        });
-        
-        // Disconnect all users from the room
-        io.in(roomId).disconnectSockets();
-        
-        // Clear the timeout and delete the room
-        clearTimeout(room.timeout);
-        activeRooms.delete(roomId);
-        
-        console.log(`Room ${roomId} has expired and been removed`);
+    if (!room) return false;
+
+    room.users.add(socket.id);
+    socket.join(roomId);
+    
+    // Broadcast updated user count
+    io.to(roomId).emit('user-count', room.users.size);
+    
+    // Set expiry warning
+    const timeLeft = (room.createdAt + ROOM_EXPIRY_TIME) - Date.now();
+    if (timeLeft <= EXPIRY_WARNING_TIME) {
+        socket.emit('room-expiry', { timeLeft });
     }
+
+    return true;
+}
+
+function leaveRoom(socket, roomId) {
+    const room = activeRooms.get(roomId);
+    if (!room) return;
+
+    room.users.delete(socket.id);
+    socket.leave(roomId);
+    
+    // Broadcast updated user count
+    io.to(roomId).emit('user-count', room.users.size);
+
+    // Clean up empty rooms
+    if (room.users.size === 0) {
+        clearTimeout(room.expiryTimeout);
+        clearTimeout(room.warningTimeout);
+        activeRooms.delete(roomId);
+    }
+}
+
+function generateRoomId() {
+    return Math.random().toString(36).substr(2, 9);
 }
 
 // Middleware
@@ -131,49 +162,42 @@ app.get('/:roomId', (req, res) => {
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    socket.on('createRoom', async ({ roomId }) => {
-        try {
-            socket.join(roomId);
-            activeRooms.set(roomId, {
-                created: Date.now(),
-                timeout: setTimeout(() => removeRoom(roomId), ROOM_EXPIRY_TIME)
-            });
-            
-            socket.emit('message', {
-                userId: 'System',
-                message: 'Room created! Share this URL with others to chat anonymously.'
-            });
-            
-            // Send room expiry time
-            socket.emit('roomExpiry', { expiresIn: ROOM_EXPIRY_TIME / 1000 });
-            
-            console.log(`Room ${roomId} created`);
-        } catch (error) {
-            console.error('Error creating room:', error);
-            socket.emit('error', { message: 'Error creating room' });
-        }
+    socket.on('create-room', () => {
+        const roomId = generateRoomId();
+        createRoom(roomId);
+        
+        // Set room expiry
+        const room = activeRooms.get(roomId);
+        room.expiryTimeout = setTimeout(() => {
+            io.to(roomId).emit('room-expired');
+            activeRooms.delete(roomId);
+        }, ROOM_EXPIRY_TIME);
+
+        // Set expiry warning
+        room.warningTimeout = setTimeout(() => {
+            io.to(roomId).emit('room-expiry', { timeLeft: EXPIRY_WARNING_TIME });
+        }, ROOM_EXPIRY_TIME - EXPIRY_WARNING_TIME);
+
+        socket.emit('room-created', { roomId });
     });
 
-    socket.on('joinRoom', ({ roomId }) => {
-        if (activeRooms.has(roomId)) {
-            socket.join(roomId);
-            socket.emit('message', {
-                userId: 'System',
-                message: 'Welcome to the chat room!'
-            });
-            
-            const room = activeRooms.get(roomId);
-            const timeLeft = ROOM_EXPIRY_TIME - (Date.now() - room.created);
-            socket.emit('roomExpiry', { expiresIn: Math.max(0, timeLeft / 1000) });
+    socket.on('join-room', (roomId) => {
+        if (joinRoom(socket, roomId)) {
+            socket.emit('room-joined', { roomId });
         } else {
-            socket.emit('message', {
-                userId: 'System',
-                message: 'Room not found or has expired.'
-            });
+            socket.emit('error', { message: 'Room not found or expired' });
         }
     });
 
-    // Handle messages
+    socket.on('disconnect', () => {
+        // Find and leave all rooms this socket was in
+        for (const [roomId, room] of activeRooms.entries()) {
+            if (room.users.has(socket.id)) {
+                leaveRoom(socket, roomId);
+            }
+        }
+    });
+
     socket.on('message', (data) => {
         console.log('Message received:', data);
         const roomId = Array.from(socket.rooms)[1]; // First room is socket ID, second is chat room
@@ -195,10 +219,6 @@ io.on('connection', (socket) => {
                 message: 'Error: Not connected to a valid room'
             });
         }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
     });
 });
 
