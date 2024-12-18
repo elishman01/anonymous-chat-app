@@ -9,6 +9,7 @@ const copyUrlButton = document.getElementById('copy-url');
 const uploadTrigger = document.getElementById('upload-trigger');
 const sendMessageButton = document.getElementById('send-message');
 const createRoomButton = document.getElementById('create-room');
+const roomExpiryElement = document.getElementById('room-expiry');
 
 // Generate a random user ID
 const userId = Math.random().toString(36).substring(2, 15);
@@ -100,6 +101,11 @@ socket.on('room-created', (data) => {
     document.getElementById('chat-container').classList.remove('hidden');
     document.getElementById('copy-url').classList.remove('hidden'); 
     document.getElementById('user-count').classList.remove('hidden');
+    document.getElementById('room-expiry').classList.remove('hidden');
+    
+    // Set expiry time to 24 hours from now
+    const expiryTime = new Date().getTime() + (24 * 60 * 60 * 1000);
+    updateExpiryDisplay(expiryTime);
 });
 
 socket.on('room-joined', (data) => {
@@ -108,6 +114,12 @@ socket.on('room-joined', (data) => {
     document.getElementById('chat-container').classList.remove('hidden');
     document.getElementById('copy-url').classList.remove('hidden'); 
     document.getElementById('user-count').classList.remove('hidden');
+    document.getElementById('room-expiry').classList.remove('hidden');
+    
+    // Get remaining time from server
+    if (data.expiryTime) {
+        updateExpiryDisplay(data.expiryTime);
+    }
 });
 
 socket.on('error', (data) => {
@@ -310,34 +322,68 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Function to update expiry timer
-function updateExpiryTimer(expiresIn) {
-    let timerElement = document.getElementById('expiry-timer');
-    if (!timerElement) {
-        timerElement = document.createElement('div');
-        timerElement.id = 'expiry-timer';
-        timerElement.className = 'expiry-timer';
-        chatContainer.insertBefore(timerElement, messagesDiv);
-    }
+// Room expiry handling
+let expiryInterval;
+
+function updateExpiryDisplay(expiryTime) {
+    clearInterval(expiryInterval);
     
-    const updateTimer = () => {
-        const minutesLeft = Math.floor(expiresIn / 60);
-        const secondsLeft = Math.floor(expiresIn % 60);
+    expiryInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const timeLeft = expiryTime - now;
         
-        if (expiresIn <= 0) {
-            timerElement.innerHTML = 'Room has expired';
-            addMessage('System', 'This room has expired. Redirecting to home...');
+        if (timeLeft <= 0) {
+            clearInterval(expiryInterval);
+            roomExpiryElement.textContent = 'Room expired';
+            roomExpiryElement.classList.add('critical');
             return;
         }
         
-        timerElement.innerHTML = `Room expires in: ${minutesLeft}m ${secondsLeft}s`;
-        expiresIn -= 1;
-    };
-    
-    updateTimer();
-    const timerId = setInterval(updateTimer, 1000);
-    setTimeout(() => clearInterval(timerId), expiresIn * 1000);
+        // Calculate hours, minutes, seconds
+        const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+        
+        // Format display
+        let display = 'Expires in: ';
+        if (hours > 0) {
+            display += `${hours}h `;
+        }
+        if (minutes > 0 || hours > 0) {
+            display += `${minutes}m `;
+        }
+        display += `${seconds}s`;
+        
+        roomExpiryElement.textContent = display;
+        
+        // Add warning classes based on time left
+        if (timeLeft < 5 * 60 * 1000) { // Less than 5 minutes
+            roomExpiryElement.classList.remove('warning');
+            roomExpiryElement.classList.add('critical');
+        } else if (timeLeft < 30 * 60 * 1000) { // Less than 30 minutes
+            roomExpiryElement.classList.add('warning');
+            roomExpiryElement.classList.remove('critical');
+        }
+    }, 1000);
 }
+
+socket.on('room-expired', () => {
+    clearInterval(expiryInterval);
+    roomExpiryElement.textContent = 'Room expired';
+    roomExpiryElement.classList.add('critical');
+    addMessage('System', 'Room has expired. Please create a new room.', null, null, true);
+    // Redirect to home page after a delay
+    setTimeout(() => {
+        window.location.href = '/';
+    }, 3000);
+});
+
+socket.on('room-expiry', (data) => {
+    if (data.timeLeft) {
+        const expiryTime = new Date().getTime() + data.timeLeft;
+        updateExpiryDisplay(expiryTime);
+    }
+});
 
 // Add some CSS styles
 const style = document.createElement('style');

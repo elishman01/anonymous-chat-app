@@ -32,13 +32,44 @@ body {
 
 .room-info {
     display: flex;
-    gap: 1rem;
     align-items: center;
+    gap: 1rem;
 }
 
 #user-count {
     color: #888;
     font-size: 0.9rem;
+}
+
+#room-expiry {
+    color: #666;
+    font-size: 0.9rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+#room-expiry.warning {
+    color: #ff9800;
+    background-color: rgba(255, 152, 0, 0.1);
+}
+
+#room-expiry.critical {
+    color: #f44336;
+    background-color: rgba(244, 67, 54, 0.1);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
 }
 
 /* Buttons */
