@@ -11,11 +11,12 @@ const copyUrlButton = document.getElementById('copy-url');
 const userId = Math.random().toString(36).substring(2, 15);
 
 // Function to add messages
-function addMessage(sender, text, mediaUrl = null, mediaType = null) {
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${sender === 'You' ? 'own-message' : 'other-message'}`;
+function addMessage(userId, message, mediaUrl = null, mediaType = null, isSystem = false) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = isSystem ? 'message system-message' : 
+                          `message ${userId === 'You' ? 'own-message' : 'other-message'}`;
     
-    let content = `<strong>${sender}:</strong><p>${text}</p>`;
+    let content = `<strong>${userId}:</strong><p>${message}</p>`;
     
     if (mediaUrl) {
         if (mediaType === 'image') {
@@ -25,11 +26,9 @@ function addMessage(sender, text, mediaUrl = null, mediaType = null) {
         }
     }
     
-    messageElement.innerHTML = content;
-    messagesDiv.appendChild(messageElement);
+    messageDiv.innerHTML = content;
+    messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    
-    return messageElement;
 }
 
 // Connect to Socket.IO server
@@ -40,23 +39,17 @@ const BACKEND_URL = window.location.hostname === 'localhost'
 const socket = io(BACKEND_URL, {
     transports: ['websocket'],
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-    timeout: 20000,
-    path: '/socket.io'
+    reconnectionDelay: 1000
 });
 
-// Socket event handlers
-socket.on('connect_error', (error) => {
-    console.log('Connection error:', error);
-    addMessage('System', 'Connection error. Please try again.');
-});
-
+// Handle connection events
 socket.on('connect', () => {
     console.log('Connected to server');
-    const path = window.location.pathname;
-    const roomId = path.substring(1);
+    // If we have a room ID in the URL, join that room
+    const roomId = window.location.pathname.split('/').pop();
     if (roomId) {
-        socket.emit('joinRoom', { roomId });
+        console.log('Joining room:', roomId);
+        socket.emit('join-room', roomId);
     }
 });
 
@@ -65,49 +58,42 @@ socket.on('disconnect', () => {
     addMessage('System', 'Disconnected from server. Trying to reconnect...');
 });
 
+socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+    addMessage('System', 'Connection error. Please check your internet connection.');
+});
+
+// Handle room events
+socket.on('room-created', (data) => {
+    console.log('Room created:', data);
+    window.history.pushState({}, '', `/${data.roomId}`);
+    document.getElementById('welcome-container').style.display = 'none';
+    document.getElementById('chat-container').classList.remove('hidden');
+});
+
+socket.on('room-joined', (data) => {
+    console.log('Room joined:', data);
+    document.getElementById('welcome-container').style.display = 'none';
+    document.getElementById('chat-container').classList.remove('hidden');
+});
+
+// Handle messages
 socket.on('message', (data) => {
     console.log('Received message:', data);
-    if (typeof data === 'object') {
-        if (data.userId && data.message) {
-            addMessage(data.userId, data.message, data.mediaUrl, data.mediaType);
-        } else {
-            console.error('Invalid message format:', data);
-        }
+    if (data.userId === 'System') {
+        addMessage(data.userId, data.message, null, null, true);
     } else {
-        console.error('Invalid message data:', data);
+        addMessage(data.userId, data.message, data.mediaUrl, data.mediaType);
     }
 });
 
-socket.on('room-info', (data) => {
-    console.log('Room info received:', data);
-    addMessage('System', data.message);
-    updateExpiryTimer(data.expiresIn);
-});
-
-socket.on('user-count', (count) => {
-    console.log('User count updated:', count);
-    userCountElement.textContent = `Users Online: ${count}`;
-});
-
-socket.on('room-expiry', (data) => {
-    const minutes = Math.ceil(data.timeLeft / 60000);
-    addMessage('System', `Room will expire in ${minutes} minute${minutes === 1 ? '' : 's'}. Create a new room to continue chatting.`);
-});
-
-socket.on('room-expired', () => {
-    addMessage('System', 'Room has expired. Please create a new room to continue chatting.');
-    setTimeout(() => {
-        window.location.href = '/';
-    }, 5000);
-});
-
-// File upload handling
+// Handle file uploads
 fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     try {
-        addMessage('System', 'Uploading file...');
+        addMessage('System', 'Uploading file...', null, null, true);
         
         const formData = new FormData();
         formData.append('file', file);
@@ -134,7 +120,7 @@ fileInput.addEventListener('change', async (e) => {
         }
     } catch (error) {
         console.error('Upload error:', error);
-        addMessage('System', 'Failed to upload file. Please try again.');
+        addMessage('System', 'Failed to upload file. Please try again.', null, null, true);
     }
 
     fileInput.value = '';

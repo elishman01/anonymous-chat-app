@@ -180,11 +180,20 @@ io.on('connection', (socket) => {
 
         joinRoom(socket, roomId);
         socket.emit('room-created', { roomId });
+        socket.emit('message', {
+            userId: 'System',
+            message: 'Room created! Share this URL with others to chat anonymously.'
+        });
     });
 
     socket.on('join-room', (roomId) => {
+        console.log('Join room request:', roomId);
         if (joinRoom(socket, roomId)) {
             socket.emit('room-joined', { roomId });
+            socket.emit('message', {
+                userId: 'System',
+                message: 'Welcome to the chat room!'
+            });
             // Broadcast user count to all clients in the room
             const room = activeRooms.get(roomId);
             io.to(roomId).emit('user-count', room.users.size);
@@ -208,9 +217,16 @@ io.on('connection', (socket) => {
     // Handle messages
     socket.on('message', (data) => {
         console.log('Message received:', data);
-        const roomId = Array.from(socket.rooms)[1]; // First room is socket ID, second is chat room
+        // Get all rooms the socket is in
+        const rooms = Array.from(socket.rooms);
+        console.log('Socket rooms:', rooms);
         
+        // Find the chat room (not the socket's default room)
+        const roomId = rooms.find(room => room !== socket.id);
+        console.log('Room ID found:', roomId);
+
         if (roomId && activeRooms.has(roomId)) {
+            console.log('Sending message to room:', roomId);
             const messageData = {
                 userId: socket.id,
                 message: data.message,
@@ -230,6 +246,7 @@ io.on('connection', (socket) => {
                 userId: 'Anonymous'
             });
         } else {
+            console.log('Invalid room. Socket rooms:', rooms);
             socket.emit('message', {
                 userId: 'System',
                 message: 'Error: Not connected to a valid room'
