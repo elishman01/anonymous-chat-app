@@ -47,20 +47,20 @@ socket.on('connect', () => {
     console.log('Connected to server');
     // If we have a room ID in the URL, join that room
     const roomId = window.location.pathname.split('/').pop();
-    if (roomId) {
-        console.log('Joining room:', roomId);
+    if (roomId && roomId.length > 0) {
+        console.log('Attempting to join room:', roomId);
         socket.emit('join-room', roomId);
     }
 });
 
 socket.on('disconnect', () => {
     console.log('Disconnected from server');
-    addMessage('System', 'Disconnected from server. Trying to reconnect...');
+    addMessage('System', 'Disconnected from server. Trying to reconnect...', null, null, true);
 });
 
 socket.on('connect_error', (error) => {
     console.error('Connection error:', error);
-    addMessage('System', 'Connection error. Please check your internet connection.');
+    addMessage('System', 'Connection error. Please check your internet connection.', null, null, true);
 });
 
 // Handle room events
@@ -72,9 +72,14 @@ socket.on('room-created', (data) => {
 });
 
 socket.on('room-joined', (data) => {
-    console.log('Room joined:', data);
+    console.log('Room joined successfully:', data);
     document.getElementById('welcome-container').style.display = 'none';
     document.getElementById('chat-container').classList.remove('hidden');
+});
+
+socket.on('error', (data) => {
+    console.error('Server error:', data);
+    addMessage('System', data.message, null, null, true);
 });
 
 // Handle messages
@@ -86,6 +91,20 @@ socket.on('message', (data) => {
         addMessage(data.userId, data.message, data.mediaUrl, data.mediaType);
     }
 });
+
+// Function to create a room
+function createRoom() {
+    socket.emit('create-room');
+}
+
+// Function to send a message
+function sendMessage() {
+    const message = messageInput.value.trim();
+    if (message) {
+        socket.emit('message', { message });
+        messageInput.value = '';
+    }
+}
 
 // Handle file uploads
 fileInput.addEventListener('change', async (e) => {
@@ -127,22 +146,6 @@ fileInput.addEventListener('change', async (e) => {
 });
 
 // Room functions
-async function createRoom() {
-    try {
-        const roomId = Math.random().toString(36).substring(2, 10);
-        socket.emit('createRoom', { roomId });
-        
-        // Update URL without causing a page reload
-        window.history.pushState({ roomId }, '', `/${roomId}`);
-        
-        // Show chat container and hide welcome container
-        chatContainer.classList.remove('hidden');
-        welcomeContainer.classList.add('hidden');
-    } catch (error) {
-        console.error('Error creating room:', error);
-        addMessage('System', 'Error creating room. Please try again.');
-    }
-}
 
 // Handle browser back/forward buttons
 window.addEventListener('popstate', (event) => {
@@ -191,21 +194,6 @@ function updateExpiryTimer(expiresIn) {
     updateTimer();
     const timerId = setInterval(updateTimer, 1000);
     setTimeout(() => clearInterval(timerId), expiresIn * 1000);
-}
-
-// Function to send message
-function sendMessage() {
-    const message = messageInput.value.trim();
-    if (message) {
-        console.log('Sending message:', message);
-        socket.emit('message', {
-            userId,
-            message,
-            timestamp: new Date().toISOString()
-        });
-        
-        messageInput.value = '';
-    }
 }
 
 // Event listeners

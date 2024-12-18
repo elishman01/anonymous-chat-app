@@ -78,11 +78,16 @@ function createRoom(roomId) {
 }
 
 function joinRoom(socket, roomId) {
+    console.log(`Attempting to join room ${roomId} for socket ${socket.id}`);
     const room = activeRooms.get(roomId);
-    if (!room) return false;
+    if (!room) {
+        console.log(`Room ${roomId} not found`);
+        return false;
+    }
 
     room.users.add(socket.id);
     socket.join(roomId);
+    console.log(`Socket ${socket.id} joined room ${roomId}`);
     
     // Broadcast updated user count
     io.to(roomId).emit('user-count', room.users.size);
@@ -161,10 +166,14 @@ app.get('/:roomId', (req, res) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
+    let currentRoom = null;
 
     socket.on('create-room', () => {
         const roomId = generateRoomId();
+        console.log(`Creating room ${roomId} for socket ${socket.id}`);
+        
         createRoom(roomId);
+        currentRoom = roomId;
         
         // Set room expiry
         const room = activeRooms.get(roomId);
@@ -187,70 +196,56 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-room', (roomId) => {
-        console.log('Join room request:', roomId);
+        console.log(`Join room request for ${roomId} from socket ${socket.id}`);
         if (joinRoom(socket, roomId)) {
+            currentRoom = roomId;
             socket.emit('room-joined', { roomId });
             socket.emit('message', {
                 userId: 'System',
                 message: 'Welcome to the chat room!'
             });
-            // Broadcast user count to all clients in the room
-            const room = activeRooms.get(roomId);
-            io.to(roomId).emit('user-count', room.users.size);
         } else {
             socket.emit('error', { message: 'Room not found or expired' });
         }
     });
 
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-        // Find and leave all rooms this socket was in
-        for (const [roomId, room] of activeRooms.entries()) {
-            if (room.users.has(socket.id)) {
-                leaveRoom(socket, roomId);
-                // Broadcast updated user count
-                io.to(roomId).emit('user-count', room.users.size);
-            }
-        }
-    });
-
     // Handle messages
     socket.on('message', (data) => {
-        console.log('Message received:', data);
-        // Get all rooms the socket is in
-        const rooms = Array.from(socket.rooms);
-        console.log('Socket rooms:', rooms);
+        console.log(`Message received from ${socket.id} in room ${currentRoom}:`, data);
         
-        // Find the chat room (not the socket's default room)
-        const roomId = rooms.find(room => room !== socket.id);
-        console.log('Room ID found:', roomId);
-
-        if (roomId && activeRooms.has(roomId)) {
-            console.log('Sending message to room:', roomId);
+        if (currentRoom && activeRooms.has(currentRoom)) {
+            console.log(`Sending message to room ${currentRoom}`);
             const messageData = {
-                userId: socket.id,
                 message: data.message,
                 mediaUrl: data.mediaUrl,
                 mediaType: data.mediaType,
                 timestamp: new Date().toISOString()
             };
             
-            // Send different messages to sender and other users
+            // Send to sender
             socket.emit('message', {
                 ...messageData,
                 userId: 'You'
             });
             
-            socket.to(roomId).emit('message', {
+            // Send to others in the room
+            socket.to(currentRoom).emit('message', {
                 ...messageData,
                 userId: 'Anonymous'
             });
         } else {
-            console.log('Invalid room. Socket rooms:', rooms);
+            console.log(`Invalid room for socket ${socket.id}. Current room: ${currentRoom}`);
             socket.emit('message', {
                 userId: 'System',
                 message: 'Error: Not connected to a valid room'
             });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`User disconnected: ${socket.id}`);
+        if (currentRoom) {
+            leaveRoom(socket, currentRoom);
         }
     });
 });
