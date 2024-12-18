@@ -209,6 +209,13 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Handle typing indicator
+    socket.on('typing', () => {
+        if (currentRoom) {
+            socket.to(currentRoom).emit('typing', { userId: socket.id });
+        }
+    });
+
     // Handle messages
     socket.on('message', (data) => {
         console.log(`Message received from ${socket.id} in room ${currentRoom}:`, data);
