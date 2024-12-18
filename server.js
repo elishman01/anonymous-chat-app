@@ -40,16 +40,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: [
-            'http://localhost:3000',
-            'https://anonymousweb.netlify.app'
-        ],
-        methods: ["GET", "POST"],
-        allowedHeaders: ["*"],
+        origin: ['http://localhost:3000', 'https://anonymousweb.netlify.app'],
+        methods: ['GET', 'POST'],
         credentials: true
     },
-    allowEIO3: true,
-    transports: ['websocket', 'polling']
+    path: '/socket.io',
+    transports: ['websocket'],
+    pingTimeout: 60000,
+    pingInterval: 25000
 });
 
 // CORS configuration
@@ -132,35 +130,50 @@ app.get('/:roomId', (req, res) => {
     }
 });
 
-// WebSocket connection
+// Socket.IO connection handling
 io.on('connection', (socket) => {
-    console.log('A user connected');
+    console.log('User connected:', socket.id);
 
-    // Handle room joining
-    socket.on('join-room', (roomId) => {
-        // Check if room exists or create it
-        if (!activeRooms.has(roomId)) {
-            // Set up room expiration
-            const timeout = setTimeout(() => removeRoom(roomId), ROOM_EXPIRY_TIME);
+    socket.on('createRoom', async ({ roomId }) => {
+        try {
+            socket.join(roomId);
             activeRooms.set(roomId, {
-                createdAt: Date.now(),
-                timeout: timeout
+                created: Date.now(),
+                timeout: setTimeout(() => removeRoom(roomId), ROOM_EXPIRY_TIME)
             });
-            console.log(`Created new room: ${roomId}`);
+            
+            socket.emit('message', {
+                userId: 'System',
+                message: 'Room created! Share this URL with others to chat anonymously.'
+            });
+            
+            // Send room expiry time
+            socket.emit('roomExpiry', { expiresIn: ROOM_EXPIRY_TIME / 1000 });
+            
+            console.log(`Room ${roomId} created`);
+        } catch (error) {
+            console.error('Error creating room:', error);
+            socket.emit('error', { message: 'Error creating room' });
         }
+    });
 
-        socket.join(roomId);
-        console.log(`User joined room: ${roomId}`);
-
-        // Send room expiry time to user
-        const room = activeRooms.get(roomId);
-        const expiresIn = (room.createdAt + ROOM_EXPIRY_TIME - Date.now()) / 1000;
-        
-        socket.emit('room-info', {
-            roomId: roomId,
-            expiresIn: expiresIn,
-            message: `Room will expire in ${Math.floor(expiresIn / 60)} minutes`
-        });
+    socket.on('joinRoom', ({ roomId }) => {
+        if (activeRooms.has(roomId)) {
+            socket.join(roomId);
+            socket.emit('message', {
+                userId: 'System',
+                message: 'Welcome to the chat room!'
+            });
+            
+            const room = activeRooms.get(roomId);
+            const timeLeft = ROOM_EXPIRY_TIME - (Date.now() - room.created);
+            socket.emit('roomExpiry', { expiresIn: Math.max(0, timeLeft / 1000) });
+        } else {
+            socket.emit('message', {
+                userId: 'System',
+                message: 'Room not found or has expired.'
+            });
+        }
     });
 
     socket.on('message', (msg) => {
@@ -176,7 +189,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log('A user disconnected');
+        console.log('User disconnected:', socket.id);
     });
 });
 

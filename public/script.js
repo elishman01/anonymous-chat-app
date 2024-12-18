@@ -40,28 +40,31 @@ const BACKEND_URL = window.location.hostname === 'localhost'
     : 'https://anonymous-chat-backend-8m4i.onrender.com';
 
 const socket = io(BACKEND_URL, {
-    transports: ['websocket', 'polling'],
+    transports: ['websocket'],
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    withCredentials: true
+    timeout: 20000,
+    path: '/socket.io'
 });
 
 // Socket event handlers
-socket.on('connect', () => {
-    console.log('Connected to server');
-});
-
 socket.on('connect_error', (error) => {
-    console.error('Connection error:', error);
+    console.log('Connection error:', error);
     addMessage('System', 'Connection error. Please try again.');
 });
 
-socket.on('disconnect', (reason) => {
-    console.log('Disconnected:', reason);
-    if (reason === 'io server disconnect') {
-        addMessage('System', 'Room has expired or been closed.');
-        window.location.href = '/';
+socket.on('connect', () => {
+    console.log('Connected to server');
+    const path = window.location.pathname;
+    const roomId = path.substring(1);
+    if (roomId) {
+        socket.emit('joinRoom', { roomId });
     }
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+    addMessage('System', 'Disconnected from server. Trying to reconnect...');
 });
 
 socket.on('message', (data) => {
