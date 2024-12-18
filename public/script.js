@@ -69,8 +69,15 @@ socket.on('disconnect', () => {
 
 socket.on('message', (data) => {
     console.log('Received message:', data);
-    const sender = data.userId === userId ? 'You' : 'Anonymous';
-    addMessage(sender, data.message, data.mediaUrl, data.mediaType);
+    if (typeof data === 'object') {
+        if (data.userId && data.message) {
+            addMessage(data.userId, data.message, data.mediaUrl, data.mediaType);
+        } else {
+            console.error('Invalid message format:', data);
+        }
+    } else {
+        console.error('Invalid message data:', data);
+    }
 });
 
 socket.on('room-info', (data) => {
@@ -84,10 +91,9 @@ fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const tempMessage = addMessage('You', 'Uploading file...');
-    tempMessage.classList.add('uploading');
-
     try {
+        addMessage('System', 'Uploading file...');
+        
         const formData = new FormData();
         formData.append('file', file);
 
@@ -96,25 +102,27 @@ fileInput.addEventListener('change', async (e) => {
             body: formData
         });
 
-        if (!response.ok) throw new Error('Upload failed');
+        if (!response.ok) {
+            throw new Error(`Upload failed: ${response.statusText}`);
+        }
 
-        const data = await response.json();
-        tempMessage.remove();
+        const result = await response.json();
+        console.log('Upload result:', result);
 
-        socket.emit('message', {
-            userId,
-            message: '',
-            mediaUrl: data.url,
-            mediaType: data.type,
-            timestamp: new Date().toISOString()
-        });
-
+        if (result.url) {
+            const mediaType = file.type.startsWith('image/') ? 'image' : 'video';
+            socket.emit('message', {
+                message: 'Shared a file',
+                mediaUrl: result.url,
+                mediaType: mediaType
+            });
+        }
     } catch (error) {
         console.error('Upload error:', error);
-        tempMessage.innerHTML = '<strong>You:</strong><p>Failed to upload file. Please try again.</p>';
-        setTimeout(() => tempMessage.remove(), 3000);
+        addMessage('System', 'Failed to upload file. Please try again.');
     }
 
+    // Clear the file input
     fileInput.value = '';
 });
 

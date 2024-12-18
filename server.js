@@ -93,22 +93,19 @@ app.use(express.static('public'));
 
 // File upload endpoint
 app.post('/upload', upload.single('file'), async (req, res) => {
-    console.log('Upload request received');
     try {
         if (!req.file) {
-            console.log('No file in request');
-            return res.status(400).json({ error: 'No file uploaded' });
+            throw new Error('No file uploaded');
         }
 
-        console.log('File uploaded successfully:', req.file);
-        // Return the Cloudinary URL
-        res.json({ 
+        console.log('File uploaded:', req.file);
+        res.json({
             url: req.file.path,
-            type: req.file.resource_type
+            type: req.file.mimetype.startsWith('image/') ? 'image' : 'video'
         });
     } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({ error: 'Upload failed' });
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -176,15 +173,27 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('message', (msg) => {
-        // Get the rooms this socket is in
-        const rooms = Array.from(socket.rooms);
-        // The first room is always the socket's ID, so we want the second one
-        const roomId = rooms[1];
-        
+    // Handle messages
+    socket.on('message', (data) => {
+        console.log('Message received:', data);
+        const roomId = Array.from(socket.rooms)[1]; // First room is socket ID, second is chat room
         if (roomId && activeRooms.has(roomId)) {
-            // Broadcast to the specific room
-            io.to(roomId).emit('message', msg);
+            const messageData = {
+                userId: socket.id === data.userId ? 'You' : 'Anonymous',
+                message: data.message,
+                mediaUrl: data.mediaUrl,
+                mediaType: data.mediaType,
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('Broadcasting message:', messageData);
+            io.to(roomId).emit('message', messageData);
+        } else {
+            console.log('Message not sent - invalid room:', roomId);
+            socket.emit('message', {
+                userId: 'System',
+                message: 'Error: Not connected to a valid room'
+            });
         }
     });
 
