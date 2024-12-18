@@ -103,9 +103,10 @@ socket.on('room-created', (data) => {
     document.getElementById('user-count').classList.remove('hidden');
     document.getElementById('room-expiry').classList.remove('hidden');
     
-    // Set expiry time to 24 hours from now
-    const expiryTime = new Date().getTime() + (24 * 60 * 60 * 1000);
-    updateExpiryDisplay(expiryTime);
+    // Update expiry display with server-provided time
+    if (data.expiryTime) {
+        updateExpiryDisplay(data.expiryTime);
+    }
 });
 
 socket.on('room-joined', (data) => {
@@ -152,6 +153,7 @@ socket.on('message', (data) => {
 
 // Function to create a room
 function createRoom() {
+    console.log('Creating room...');
     socket.emit('create-room');
 }
 
@@ -299,8 +301,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Send message button
     sendMessageButton.addEventListener('click', sendMessage);
 
-    // Create room button
-    createRoomButton.addEventListener('click', createRoom);
+    // Create room button click handler
+    createRoomButton.addEventListener('click', () => {
+        console.log('Creating room...');
+        socket.emit('create-room');
+    });
 
     // Message input enter key
     messageInput.addEventListener('keypress', (e) => {
@@ -327,6 +332,7 @@ let expiryInterval;
 
 function updateExpiryDisplay(expiryTime) {
     clearInterval(expiryInterval);
+    const roomExpiryElement = document.getElementById('room-expiry');
     
     expiryInterval = setInterval(() => {
         const now = new Date().getTime();

@@ -207,8 +207,11 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('room-expiry', { timeLeft: EXPIRY_WARNING_TIME });
         }, ROOM_EXPIRY_TIME - EXPIRY_WARNING_TIME);
 
-        // Send initial user count along with room creation
-        socket.emit('room-created', { roomId });
+        // Send initial user count along with room creation and expiry time
+        socket.emit('room-created', { 
+            roomId,
+            expiryTime: Date.now() + ROOM_EXPIRY_TIME 
+        });
         io.to(roomId).emit('user-count', { count: 1 });
         socket.emit('message', {
             userId: 'System',
