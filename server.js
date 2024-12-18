@@ -64,7 +64,7 @@ app.use(cors(corsOptions));
 
 // Room management
 const ROOM_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24 hours
-const EXPIRY_WARNING_TIME = 10 * 60 * 1000; // 10 minutes
+const EXPIRY_WARNING_TIME = 30 * 60 * 1000;    // 30 minutes warning
 
 const activeRooms = new Map(); // roomId -> { users: Set, createdAt: timestamp }
 
@@ -78,16 +78,35 @@ function createRoom(roomId) {
 }
 
 function joinRoom(socket, roomId) {
+    console.log(`Attempting to join room ${roomId} for socket ${socket.id}`);
+    
     if (!activeRooms.has(roomId)) {
         console.log(`Room ${roomId} not found`);
+        socket.emit('error', { message: 'Room not found or expired' });
         return false;
     }
 
-    socket.join(roomId);
     const room = activeRooms.get(roomId);
+    
+    // Reset expiry timer when someone joins
+    if (room.expiryTimeout) {
+        clearTimeout(room.expiryTimeout);
+        clearTimeout(room.warningTimeout);
+        
+        room.expiryTimeout = setTimeout(() => {
+            io.to(roomId).emit('room-expired');
+            activeRooms.delete(roomId);
+        }, ROOM_EXPIRY_TIME);
+
+        room.warningTimeout = setTimeout(() => {
+            io.to(roomId).emit('room-expiry', { timeLeft: EXPIRY_WARNING_TIME });
+        }, ROOM_EXPIRY_TIME - EXPIRY_WARNING_TIME);
+    }
+
+    socket.join(roomId);
     room.users.add(socket.id);
     
-    // Broadcast updated user count to all clients in the room
+    // Broadcast updated user count
     const userCount = room.users.size;
     io.to(roomId).emit('user-count', { count: userCount });
     

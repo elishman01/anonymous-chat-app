@@ -40,26 +40,51 @@ const BACKEND_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:3000'
     : 'https://anonymous-chat-backend-8m4i.onrender.com';
 
-const socket = io(BACKEND_URL, {
-    transports: ['websocket'],
+let currentRoomId = null;
+
+const socket = io({
+    reconnection: true,
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000
 });
 
 // Handle connection events
 socket.on('connect', () => {
     console.log('Connected to server');
-    // If we have a room ID in the URL, join that room
     const roomId = window.location.pathname.split('/').pop();
     if (roomId && roomId.length > 0) {
+        currentRoomId = roomId;
         console.log('Attempting to join room:', roomId);
         socket.emit('join-room', roomId);
     }
 });
 
 socket.on('disconnect', () => {
-    console.log('Disconnected from server');
+    console.log('Disconnected from server. Trying to reconnect...');
     addMessage('System', 'Disconnected from server. Trying to reconnect...', null, null, true);
+});
+
+socket.on('reconnect', () => {
+    console.log('Reconnected to server');
+    addMessage('System', 'Reconnected to server!', null, null, true);
+    
+    if (currentRoomId) {
+        console.log('Rejoining room:', currentRoomId);
+        socket.emit('join-room', currentRoomId);
+    }
+});
+
+socket.on('reconnect_failed', () => {
+    console.log('Failed to reconnect');
+    addMessage('System', 'Failed to reconnect to server. Please refresh the page.', null, null, true);
+});
+
+socket.on('room-expired', () => {
+    addMessage('System', 'Room has expired. Please create a new room.', null, null, true);
+    // Optionally redirect to home page
+    window.location.href = '/';
 });
 
 socket.on('connect_error', (error) => {
